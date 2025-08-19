@@ -360,8 +360,11 @@ This tool is for authorized security testing only. Make sure you have explicit w
 - Proxy support and basic/NTLM auth.
 - Tech-specific payloads (ASP/JSP).
 - WAF-evasion payload mutation engine.
+- Add Rules
 
 ## Credits
 
 Inspired by classic signatures (r57, c99, wso…) and static scanning tools.
 Thanks to the FOSS projects that made this possible.
+
+-- by dEEpEst _ Hack Tools Dark Community --
