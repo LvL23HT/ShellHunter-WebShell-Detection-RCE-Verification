@@ -7,6 +7,8 @@ This project automates two phases:
 - **Phase 1 – Static Detection** (`shellhunter.py`): scans the codebase, applies heuristics/signatures and produces a `report.json` with candidates.
 - **Phase 2 – Dynamic Verification** (`verify_rce.py`): maps Phase-1 file paths to live URLs, fires payloads (including obfuscated variants), detects visible evidence, blind timing, classifies PHP errors, and generates timestamped reports, logs, and artifacts.
 
+![shellhunter](https://raw.githubusercontent.com/LvL23HT/ShellHunter-WebShell-Detection-RCE-Verification/refs/heads/main/banner.gif)
+
 ## Layout
 
 ```
