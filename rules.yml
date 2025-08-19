@@ -1,0 +1,190 @@
+meta:
+  version: 4
+  description: "ShellHunter tuned rules — cross-platform, lower-noise strong signals"
+
+rules:
+  # ========= PHP: señales fuertes =========
+  - id: php_exec_strong
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 3
+    any_regex:
+      - "\\beval\\s*\\("
+      - "\\bsystem\\s*\\("
+      - "(?<!->)(?<!::)\\bexec\\s*\\("          # evita $pdo->exec(), Class::exec()
+      - "\\bpassthru\\b"
+      - "\\bshell_exec\\s*\\("
+      - "\\bproc_open\\s*\\("
+      - "\\bpopen\\s*\\("
+      - "\\bassert\\s*\\("                       # assert como eval
+      - "preg_replace\\s*\\(.*/e"
+      # llamadas indirectas (e.g., ${'ev'.'al'}(...))
+      - "\\$\\{?['\\\"]?e\\s*?v\\s*?a\\s*?l['\\\"]?\\}?\\s*\\("
+      - "(?i)call_user_func\\s*\\((?:['\\\"]|\\$)"
+
+  - id: php_exec_uses_user_input
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 4
+    any_regex:
+      - "(?is)\\b(exec|system|passthru|shell_exec)\\s*\\([^)]*\\$_(GET|POST|REQUEST|COOKIE|SERVER)[^)]*\\)"
+
+  # ========= Wrappers/streams y escritura =========
+  - id: php_dangerous_wrappers
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 1
+    any_regex:
+      - "(?i)php://(?:input|filter|stdout|stderr)"
+      - "(?i)data://"
+      - "(?i)expect://"
+      - "(?i)file_put_contents\\s*\\("
+      - "(?i)move_uploaded_file\\s*\\("
+
+  # ========= UI/familias típicas de shells (más conservador) =========
+  - id: php_webshell_ui_strong
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 2
+    any_regex:
+      - "(?i)\\bwhoami\\b"
+      - "(?i)\\buname\\s+-a\\b"
+      - "(?i)\\b(files?man(ager)?|web\\s*shell)\\b"
+      - "(?i)\\brun\\s+command\\b|\\bexecute\\s+(?:cmd|command|shell|system)\\b"
+      - "(?i)<form[^>]+(cmd|exec|command|shell)"
+
+  # Palabras de 'upload' (muy comunes) → peso bajo, solo para sumar
+  - id: php_upload_terms_soft
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 1
+    any_regex:
+      - "(?i)\\bupload\\b"
+
+  # ========= Ofuscación / entropía (señales suaves) =========
+  - id: base64_blob
+    weight: 1
+    any_regex:
+      - "[A-Za-z0-9+/]{240,}={0,2}"
+
+  - id: high_entropy_with_blob
+    weight: 1
+    any_regex:
+      - "(?i)base64|gzinflate|fromcharcode"
+    entropy:
+      min: 4.6
+
+  # Reciente (suave)
+  - id: recent_mtime
+    weight: 1
+    recent_days: 7
+
+  # ========= Windows / ASP.NET =========
+  - id: aspx_exec
+    when_ext: [".aspx", ".ashx", ".asmx", ".cshtml", ".vbhtml"]
+    weight: 3
+    any_regex:
+      - "(?i)System\\.Diagnostics\\.Process"
+      - "(?i)ProcessStartInfo"
+      - "(?i)\\bcmd\\.exe\\b"
+      - "(?i)\\bpowershell\\.exe\\b"
+      - "(?i)WScript\\.Shell"
+
+  - id: asp_classic_exec
+    when_ext: [".asp"]
+    weight: 3
+    any_regex:
+      - "(?i)Server\\.CreateObject\\(\"WScript\\.Shell\"\\)"
+      - "(?i)\\bExecute\\s*\\("
+      - "(?i)\\bEval\\s*\\("
+
+  # ========= Java / JSP =========
+  - id: jsp_exec
+    when_ext: [".jsp", ".jspx"]
+    weight: 3
+    any_regex:
+      - "Runtime\\.getRuntime\\(\\)\\.exec\\s*\\("
+      - "(?i)\\bcmd\\.exe\\b"
+      - "(?i)/bin/sh"
+
+  # ========= Hints OS (suave) =========
+  - id: linux_cmd_hints
+    weight: 1
+    any_regex:
+      - "(?i)\\b/bin/(bash|sh|dash|zsh)\\b"
+      - "(?i)\\b/usr/bin/(nc|ncat|curl|wget)\\b"
+
+  - id: windows_cmd_hints
+    weight: 1
+    any_regex:
+      - "(?i)\\\\Windows\\\\System32\\\\cmd\\.exe"
+      - "(?i)\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\"
+
+  # ========= Literales de comandos OS (más precisos) =========
+  - id: suspicious_command_literals
+    weight: 3
+    any_regex:
+      - "(?i)\\bwhoami\\b"
+      - "(?i)\\buname(?:\\s+-a)?\\b"
+      - "(?i)\\bpwd\\b"
+      - "(?i)\\bnet\\s+user\\b"
+      - "(?i)cat\\s+/etc/passwd"
+
+  # === PHP: ofuscación y ejecución indirecta ===
+  - id: php_eval_base64_combo
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 3
+    any_regex:
+    # eval(base64_decode('...'))
+    - "(?is)eval\\s*\\(\\s*base64_decode\\s*\\("
+    # assert(base64_decode(...))
+    - "(?is)assert\\s*\\(\\s*base64_decode\\s*\\("
+
+  - id: php_decode_then_eval_separate_lines
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 2
+    any_regex:
+    # $x = base64_decode('...'); ... eval($x) | assert($x)
+    - "(?is)\\$[A-Za-z_]\\w*\\s*=\\s*base64_decode\\s*\\([^\\)]{10,}\\)\\s*;[^\\n]{0,200}(eval|assert)\\s*\\(\\s*\\$[A-Za-z_]\\w*\\s*\\)"
+
+  - id: php_obfuscation_chr_concat
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 2
+    any_regex:
+    # "e"."v"."a"."l"  o  chr(101).chr(118).chr(97).chr(108)
+    - "(?is)(['\"])\\s*e\\s*\\1\\s*\\.\\s*(['\"])\\s*v\\s*\\2\\s*\\.\\s*(['\"])\\s*a\\s*\\3\\s*\\.\\s*(['\"])\\s*l\\s*\\4"
+    - "(?is)chr\\s*\\(\\s*1?0?1\\s*\\)\\s*\\.\\s*chr\\s*\\(\\s*1?1?8\\s*\\)\\s*\\.\\s*chr\\s*\\(\\s*0?9?7\\s*\\)\\s*\\.\\s*chr\\s*\\(\\s*1?0?8\\s*\\)"
+
+  - id: php_variable_function_eval_like
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 2
+    any_regex:
+    # $f = 'e'.'v'.'a'.'l'; $f($x)
+    - "(?is)\\$[A-Za-z_]\\w*\\s*=\\s*(?:['\"][^'\"]*['\"]\\s*\\.){2,}[^;\\n]*;[^\\n]{0,200}\\$[A-Za-z_]\\w*\\s*\\("
+    # call_user_func con nombre no literal (variable/concat)
+    - "(?is)call_user_func\\s*\\(\\s*\\$[A-Za-z_]\\w+"
+
+  - id: php_superglobal_in_eval
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 4
+    any_regex:
+    # eval/assert con entrada de usuario
+    - "(?is)(eval|assert)\\s*\\([^\\)]*\\$_(GET|POST|REQUEST|COOKIE|SERVER)[^\\)]*\\)"
+
+  - id: php_preg_replace_e_modifier
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 3
+    any_regex:
+    - "(?is)preg_replace\\s*\\([^\\)]*/e[^\\)]*\\)"
+
+  - id: php_include_from_user_input
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 3
+    any_regex:
+    - "(?is)\\b(include|require|include_once|require_once)\\b\\s*\\([^\\)]*\\$_(GET|POST|REQUEST|COOKIE)[^\\)]*\\)"
+
+  # Señal suave extra si hay decodificadores + alta entropía
+  - id: php_decoders_entropy
+    when_ext: [".php", ".phtml", ".php5", ".inc"]
+    weight: 1
+    any_regex:
+    - "(?i)base64_decode|gzinflate|gzuncompress|str_rot13|strrev"
+    entropy:
+    min: 4.7 
+
+
