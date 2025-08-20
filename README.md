@@ -355,7 +355,7 @@ Use `--save-bodies` (and maybe `--save-bodies-all`). Positives also include `res
 
 This tool is for authorized security testing only. Make sure you have explicit written permission. Misuse is the operator's responsibility.
 
-## Roadmap (ideas)
+## Roadmap
 
 - Proxy support and basic/NTLM auth.
 - Tech-specific payloads (ASP/JSP).
